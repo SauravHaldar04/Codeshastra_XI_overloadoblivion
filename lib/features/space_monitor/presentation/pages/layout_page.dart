@@ -2,7 +2,7 @@ import 'package:codeshastraxi_overload_oblivion/features/auth/presentation/pages
 import 'package:codeshastraxi_overload_oblivion/features/space_monitor/presentation/pages/dashboard_page.dart';
 import 'package:codeshastraxi_overload_oblivion/features/space_monitor/presentation/pages/scan_page.dart';
 import 'package:codeshastraxi_overload_oblivion/features/space_monitor/presentation/pages/analysis_page.dart';
-import 'package:codeshastraxi_overload_oblivion/features/space_monitor/presentation/pages/settings_page.dart';
+import 'package:codeshastraxi_overload_oblivion/features/space_monitor/presentation/pages/chatbot_page.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -21,7 +21,7 @@ class _LayoutPageState extends State<LayoutPage> {
     const DashboardPage(),
     const ScanPage(),
     const AnalysisPage(),
-    const SettingsPage(),
+    const ChatbotPage(),
   ];
 
   @override
@@ -93,9 +93,9 @@ class _LayoutPageState extends State<LayoutPage> {
                 label: 'Analysis',
               ),
               BottomNavigationBarItem(
-                icon: Icon(Icons.settings),
-                activeIcon: Icon(Icons.settings, size: 28),
-                label: 'Settings',
+                icon: Icon(Icons.chat),
+                activeIcon: Icon(Icons.chat, size: 28),
+                label: 'Assistant',
               ),
             ],
           ),
