@@ -65,7 +65,7 @@ class LandingPage extends StatelessWidget {
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        "Your eyes, even without you",
+                        "Smart Space Tracking & Management",
                         style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.w700,

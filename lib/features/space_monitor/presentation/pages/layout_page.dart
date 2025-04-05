@@ -43,7 +43,7 @@ class _LayoutPageState extends State<LayoutPage> {
           )
         ],
         title: const Text(
-          'Space Monitor',
+          'Trakshak',
           style: TextStyle(color: Colors.white),
         ),
         centerTitle: true,

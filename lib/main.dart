@@ -47,7 +47,7 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     // Use a separate widget to initialize the AuthBloc
     return MaterialApp(
-      title: 'Spill Sentinel',
+      title: 'Trakshak',
       theme: AppTheme.appTheme,
       debugShowCheckedModeBanner: false,
       home: const AppInitializer(),
