@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "885679973478",
+    "project_id": "codeshastraxi",
+    "storage_bucket": "codeshastraxi.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:885679973478:android:e362dc145a7a7f6612f9a7",
+        "android_client_info": {
+          "package_name": "com.example.codeshastraxi_overload_oblivion"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDgmS4_NTwyWCZcJWbAs2Ftfh34GnMVleQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
