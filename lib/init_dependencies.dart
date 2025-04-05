@@ -7,6 +7,7 @@ import 'package:internet_connection_checker_plus/internet_connection_checker_plu
 import 'package:logger/logger.dart';
 import 'package:codeshastraxi_overload_oblivion/core/cubits/auth_user/auth_user_cubit.dart';
 import 'package:codeshastraxi_overload_oblivion/core/network/check_internet_connection.dart';
+import 'package:codeshastraxi_overload_oblivion/core/network/api_service.dart';
 import 'package:codeshastraxi_overload_oblivion/core/usecase/current_user.dart';
 import 'package:codeshastraxi_overload_oblivion/features/auth/data/datasources/auth_remote_datasources.dart';
 import 'package:codeshastraxi_overload_oblivion/features/auth/data/repositories/auth_repository_impl.dart';
@@ -19,6 +20,7 @@ import 'package:codeshastraxi_overload_oblivion/features/auth/domain/usecases/us
 import 'package:codeshastraxi_overload_oblivion/features/auth/domain/usecases/user_signup.dart';
 import 'package:codeshastraxi_overload_oblivion/features/auth/domain/usecases/verify_user_email.dart';
 import 'package:codeshastraxi_overload_oblivion/features/auth/presentation/bloc/auth_bloc.dart';
+import 'package:codeshastraxi_overload_oblivion/features/space_monitor/presentation/cubit/space_optimization_cubit.dart';
 //import 'package:codeshastraxi_overload_oblivion/services/notification_service.dart';
 
 final serviceLocator = GetIt.instance;
@@ -44,6 +46,14 @@ Future<void> initDependencies() async {
       () => CheckInternetConnectionImpl(
             serviceLocator(),
           ));
+  
+  // Register API Service
+  serviceLocator.registerLazySingleton<ApiService>(() => ApiService());
+  
+  // Register SpaceOptimizationCubit
+  serviceLocator.registerFactory<SpaceOptimizationCubit>(
+    () => SpaceOptimizationCubit()
+  );
 
   // Initialize AuthUserCubit with Firebase Auth
   serviceLocator.registerLazySingleton<AuthUserCubit>(
