@@ -48,22 +48,8 @@ class _LayoutPageState extends State<LayoutPage> {
         ),
         centerTitle: true,
       ),
-      body: Stack(
-        children: [
-          _pages[_currentIndex],
-          Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [
-                  Theme.of(context).colorScheme.primary.withOpacity(0.1),
-                  Colors.transparent,
-                ],
-              ),
-            ),
-          ),
-        ],
+      body: SafeArea(
+        child: _pages[_currentIndex],
       ),
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
