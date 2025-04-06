@@ -6,6 +6,10 @@ import 'package:codeshastraxi_overload_oblivion/features/space_monitor/presentat
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:codeshastraxi_overload_oblivion/core/theme/app_pallete.dart';
+import '../cubits/scene_analysis_cubit.dart';
+import 'package:codeshastraxi_overload_oblivion/init_dependencies.dart';
 
 class LayoutPage extends StatefulWidget {
   const LayoutPage({super.key});
@@ -24,83 +28,161 @@ class _LayoutPageState extends State<LayoutPage> {
     const ChatbotPage(),
   ];
 
+  // Define navigation items
+  final List<NavItem> _navItems = [
+    NavItem(
+      icon: Icons.dashboard_outlined,
+      activeIcon: Icons.dashboard,
+      label: 'Dashboard',
+      color: Pallete.primaryColor,
+    ),
+    NavItem(
+      icon: Icons.camera_alt_outlined,
+      activeIcon: Icons.camera_alt,
+      label: 'Scan',
+      color: Pallete.primaryColor,
+    ),
+    NavItem(
+      icon: Icons.analytics_outlined,
+      activeIcon: Icons.analytics,
+      label: 'Analysis',
+      color: Pallete.accentColor,
+    ),
+    NavItem(
+      icon: Icons.chat_outlined,
+      activeIcon: Icons.chat,
+      label: 'Assistant',
+      color: Pallete.secondaryColor,
+    ),
+  ];
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        elevation: 0,
-        backgroundColor: Theme.of(context).colorScheme.primary,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.logout, color: Colors.white),
-            onPressed: () {
-              FirebaseAuth.instance.signOut();
-              Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(builder: (context) => const LandingPage()),
-              );
-            },
-          )
-        ],
-        title: const Text(
-          'Trakshak',
-          style: TextStyle(color: Colors.white),
+    return MultiBlocProvider(
+      providers: [
+        BlocProvider<SceneAnalysisCubit>(
+          create: (context) => serviceLocator<SceneAnalysisCubit>(),
         ),
-        centerTitle: true,
-      ),
-      body: SafeArea(
-        child: _pages[_currentIndex],
-      ),
-      bottomNavigationBar: Container(
-        decoration: BoxDecoration(
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.1),
-              blurRadius: 10,
-              offset: const Offset(0, -5),
-            ),
+      ],
+      child: Scaffold(
+        appBar: AppBar(
+          elevation: 0,
+          backgroundColor: Theme.of(context).colorScheme.primary,
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.logout, color: Colors.white),
+              onPressed: () {
+                FirebaseAuth.instance.signOut();
+                Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(builder: (context) => const LandingPage()),
+                );
+              },
+            )
           ],
-        ),
-        child: ClipRRect(
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-          child: BottomNavigationBar(
-            currentIndex: _currentIndex,
-            onTap: (index) {
-              setState(() {
-                _currentIndex = index;
-              });
-            },
-            type: BottomNavigationBarType.fixed,
-            selectedItemColor: Theme.of(context).colorScheme.primary,
-            unselectedItemColor: Colors.grey,
-            showSelectedLabels: true,
-            showUnselectedLabels: true,
-            elevation: 10,
-            items: const [
-              BottomNavigationBarItem(
-                icon: Icon(Icons.dashboard),
-                activeIcon: Icon(Icons.dashboard, size: 28),
-                label: 'Dashboard',
-              ),
-              BottomNavigationBarItem(
-                icon: Icon(Icons.camera_alt),
-                activeIcon: Icon(Icons.camera_alt, size: 28),
-                label: 'Scan',
-              ),
-              BottomNavigationBarItem(
-                icon: Icon(Icons.analytics),
-                activeIcon: Icon(Icons.analytics, size: 28),
-                label: 'Analysis',
-              ),
-              BottomNavigationBarItem(
-                icon: Icon(Icons.chat),
-                activeIcon: Icon(Icons.chat, size: 28),
-                label: 'Assistant',
-              ),
-            ],
+          title: const Text(
+            'Trakshak',
+            style: TextStyle(color: Colors.white),
           ),
+          centerTitle: true,
         ),
+        body: SafeArea(
+          child: _pages[_currentIndex],
+        ),
+        bottomNavigationBar: _buildBottomNavigationBar(),
       ),
     );
   }
+
+  Widget _buildBottomNavigationBar() {
+    return Container(
+      height: 80,
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(25),
+        boxShadow: [
+          BoxShadow(
+            color: Pallete.primaryColor.withOpacity(0.1),
+            blurRadius: 15,
+            spreadRadius: 1,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        children: List.generate(_navItems.length, (index) {
+          return _buildNavItem(index);
+        }),
+      ),
+    );
+  }
+
+  Widget _buildNavItem(int index) {
+    final isSelected = _currentIndex == index;
+    final item = _navItems[index];
+    final color = isSelected ? item.color : Pallete.greyColor;
+
+    return InkWell(
+      onTap: () => setState(() => _currentIndex = index),
+      customBorder: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(15),
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          // Badge indicator above selected item
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 300),
+            width: 30,
+            height: 3,
+            margin: const EdgeInsets.only(bottom: 7),
+            decoration: BoxDecoration(
+              color: isSelected ? item.color : Colors.transparent,
+              borderRadius: BorderRadius.circular(10),
+            ),
+          ),
+          // Icon with background
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: isSelected ? color.withOpacity(0.1) : Colors.transparent,
+              borderRadius: BorderRadius.circular(15),
+            ),
+            child: Icon(
+              isSelected ? item.activeIcon : item.icon,
+              color: color,
+              size: isSelected ? 26 : 22,
+            ),
+          ),
+          const SizedBox(height: 4),
+          // Label
+          Text(
+            item.label,
+            style: TextStyle(
+              color: color,
+              fontSize: 12,
+              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// Model class for navigation items
+class NavItem {
+  final IconData icon;
+  final IconData activeIcon;
+  final String label;
+  final Color color;
+
+  NavItem({
+    required this.icon,
+    required this.activeIcon,
+    required this.label,
+    required this.color,
+  });
 }

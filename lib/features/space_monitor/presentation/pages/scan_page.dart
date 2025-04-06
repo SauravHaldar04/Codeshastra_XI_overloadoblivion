@@ -2,6 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'dart:io';
 import 'package:image_picker/image_picker.dart';
+import 'package:codeshastraxi_overload_oblivion/features/space_monitor/data/services/scene_analysis_service.dart';
+import 'package:codeshastraxi_overload_oblivion/features/space_monitor/domain/entities/scene_analysis_job.dart';
+import 'dart:async'; // For Timer
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class ScanPage extends StatefulWidget {
   const ScanPage({super.key});
@@ -21,10 +25,19 @@ class _ScanPageState extends State<ScanPage>
   bool _isRoomVideo = false;
   bool _isInventoryVideo = false;
 
+  // Scene Analysis API related
+  final SceneAnalysisService _analysisService = SceneAnalysisService();
+  SceneAnalysisJob? _currentJob;
+  Timer? _statusCheckTimer;
+  bool _isProcessing = false;
+
   // Sample data for rooms
   final List<String> _rooms = [
     'Room 101',
     'Room 202',
+    'Room 300',
+    'Room 15',
+    'Living Room',
     'Conference Room A',
   ];
 
@@ -44,6 +57,7 @@ class _ScanPageState extends State<ScanPage>
   @override
   void dispose() {
     _tabController.dispose();
+    _statusCheckTimer?.cancel();
     super.dispose();
   }
 
@@ -255,9 +269,9 @@ class _ScanPageState extends State<ScanPage>
   void _showMediaPreviewDialog(bool isRoom) {
     final File? mediaFile = isRoom ? _roomImage : _inventoryImage;
     final bool isVideo = isRoom ? _isRoomVideo : _isInventoryVideo;
-    final String area = isRoom ? _selectedRoom! : _selectedInventoryArea!;
+    final String? area = isRoom ? _selectedRoom : _selectedInventoryArea;
 
-    if (mediaFile == null) return;
+    if (mediaFile == null || area == null) return;
 
     showDialog(
       context: context,
@@ -332,7 +346,12 @@ class _ScanPageState extends State<ScanPage>
           ElevatedButton(
             onPressed: () {
               Navigator.pop(context);
-              _showScanResultDialog(isRoom);
+              // Only use Scene Analysis API for room images (not video and not inventory)
+              if (isRoom && !isVideo) {
+                _startSceneAnalysis(mediaFile, area);
+              } else {
+                _showScanResultDialog(isRoom);
+              }
             },
             style: ElevatedButton.styleFrom(
               shape: RoundedRectangleBorder(
@@ -351,6 +370,556 @@ class _ScanPageState extends State<ScanPage>
         ],
       ),
     );
+  }
+
+  // Scene Analysis API methods
+
+  // Start analyzing an image
+  Future<void> _startSceneAnalysis(File imageFile, String room) async {
+    setState(() {
+      _isProcessing = true;
+    });
+
+    // Show loading dialog
+    _showLoadingDialog('Sending image for analysis...');
+
+    try {
+      // Call API to analyze image
+      final response = await _analysisService.analyzeImage(
+        imageFile: imageFile,
+        room: room,
+      );
+
+      // Create SceneAnalysisJob from response
+      _currentJob = SceneAnalysisJob.fromAnalyzeResponse(response);
+
+      // Close loading dialog
+      Navigator.pop(context);
+
+      // If job was created successfully, start polling for status
+      if (_currentJob != null && _currentJob!.jobId.isNotEmpty) {
+        _startStatusChecking(_currentJob!.jobId, room);
+      } else {
+        _showErrorDialog('Failed to start analysis job.');
+      }
+    } catch (e) {
+      // Close loading dialog
+      Navigator.pop(context);
+
+      // Show error dialog
+      _showErrorDialog('Error starting analysis: $e');
+
+      setState(() {
+        _isProcessing = false;
+      });
+    }
+  }
+
+  // Start polling for job status
+  void _startStatusChecking(String jobId, String room) {
+    // Show processing dialog
+    _showProcessingDialog();
+
+    // Set up periodic status check
+    _statusCheckTimer =
+        Timer.periodic(const Duration(seconds: 2), (timer) async {
+      try {
+        final statusResponse = await _analysisService.checkStatus(jobId);
+        final job = SceneAnalysisJob.fromStatusResponse(statusResponse, room);
+
+        setState(() {
+          _currentJob = job;
+        });
+
+        if (job.isComplete) {
+          timer.cancel();
+          _fetchResults(jobId);
+        } else if (job.hasError) {
+          timer.cancel();
+          Navigator.pop(context); // Close processing dialog
+          _showErrorDialog('Analysis failed: ${job.message}');
+          setState(() {
+            _isProcessing = false;
+          });
+        }
+      } catch (e) {
+        timer.cancel();
+        Navigator.pop(context); // Close processing dialog
+        _showErrorDialog('Error checking status: $e');
+        setState(() {
+          _isProcessing = false;
+        });
+      }
+    });
+  }
+
+  // Fetch results when job is complete
+  Future<void> _fetchResults(String jobId) async {
+    try {
+      // Get results
+      final resultsResponse = await _analysisService.getResults(jobId);
+
+      // Get cloud links
+      final linksResponse = await _analysisService.getCloudLinks(jobId);
+
+      // Update current job with results and links
+      setState(() {
+        _currentJob = _currentJob!
+            .copyWithResults(resultsResponse)
+            .copyWithCloudLinks(linksResponse);
+        _isProcessing = false;
+      });
+
+      // Close processing dialog
+      Navigator.pop(context);
+
+      // Show results
+      _showAnalysisResults();
+    } catch (e) {
+      // Close processing dialog
+      Navigator.pop(context);
+
+      // Show error dialog
+      _showErrorDialog('Error fetching results: $e');
+
+      setState(() {
+        _isProcessing = false;
+      });
+    }
+  }
+
+  // Display loading dialog
+  void _showLoadingDialog(String message) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const CircularProgressIndicator(),
+            const SizedBox(height: 20),
+            Text(message),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Display processing dialog with animated progress
+  void _showProcessingDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+        ),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const CircularProgressIndicator(),
+              const SizedBox(height: 20),
+              const Text(
+                'Processing your image...',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                'This may take up to a minute. We\'re analyzing objects, depth, and spatial relationships.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.grey[600]),
+              ),
+              const SizedBox(height: 20),
+              LinearProgressIndicator().animate(onPlay: (controller) {
+                controller.repeat();
+              }).shimmer(delay: 400.ms, duration: 1000.ms),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // Display error dialog
+  void _showErrorDialog(String message) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+        ),
+        title: const Text('Error'),
+        content: Text(message),
+        actions: [
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Display analysis results
+  void _showAnalysisResults() {
+    if (_currentJob == null || !_currentJob!.hasResults) return;
+
+    final job = _currentJob!;
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => Scaffold(
+          appBar: AppBar(
+            title: Text('Analysis Results: ${job.room}'),
+            actions: [
+              IconButton(
+                icon: const Icon(Icons.save),
+                tooltip: 'Save to Firestore',
+                onPressed: () => _saveAnalysisToFirestore(job),
+              ),
+            ],
+          ),
+          body: SingleChildScrollView(
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Results Header
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context)
+                          .colorScheme
+                          .primary
+                          .withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.analytics,
+                          color: Theme.of(context).colorScheme.primary,
+                          size: 36,
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Detected ${job.detectionCount} Objects',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 18,
+                                ),
+                              ),
+                              Text(
+                                'Scan ID: ${job.jobId}',
+                                style: TextStyle(
+                                  color: Colors.grey[600],
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 20),
+
+                  // Image Gallery
+                  if (job.hasCloudLinks &&
+                      job.cloudLinks!['images'] != null) ...[
+                    const Text(
+                      'Scene Images:',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        children: [
+                          // Original Image
+                          if (job.cloudLinks!['images']['original'] != null)
+                            _buildImageCard(
+                              'Original',
+                              job.cloudLinks!['images']['original']
+                                  ['secure_url'],
+                            ),
+
+                          // Detection Image
+                          if (job.cloudLinks!['images']['detection'] != null)
+                            _buildImageCard(
+                              'Detection',
+                              job.cloudLinks!['images']['detection']
+                                  ['secure_url'],
+                            ),
+
+                          // Depth Image
+                          if (job.cloudLinks!['images']['depth'] != null)
+                            _buildImageCard(
+                              'Depth Map',
+                              job.cloudLinks!['images']['depth']['secure_url'],
+                            ),
+                        ],
+                      ),
+                    ),
+                  ],
+
+                  const SizedBox(height: 20),
+
+                  // Object Summary
+                  const Text(
+                    'Objects Detected:',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+
+                  // Class summary list
+                  ...job.classSummary
+                      .map((item) => Card(
+                            margin: const EdgeInsets.only(bottom: 8),
+                            child: ListTile(
+                              leading:
+                                  Icon(_getIconForClass(item['class'] ?? '')),
+                              title: Text(
+                                _capitalizeFirstLetter(
+                                    item['class'] ?? 'Unknown'),
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.bold),
+                              ),
+                              trailing: Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 12, vertical: 6),
+                                decoration: BoxDecoration(
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .primary
+                                      .withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Text(
+                                  '${item['count']}',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color:
+                                        Theme.of(context).colorScheme.primary,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ))
+                      .toList(),
+
+                  const SizedBox(height: 20),
+
+                  // Analysis Summary
+                  const Text(
+                    'Summary:',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.grey[100],
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(job.summary),
+                  ),
+
+                  const SizedBox(height: 40),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // Helper to build an image card for the gallery
+  Widget _buildImageCard(String title, String imageUrl) {
+    return Container(
+      width: 200,
+      margin: const EdgeInsets.only(right: 16),
+      child: Card(
+        elevation: 3,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            ClipRRect(
+              borderRadius:
+                  const BorderRadius.vertical(top: Radius.circular(12)),
+              child: Image.network(
+                imageUrl,
+                height: 150,
+                width: double.infinity,
+                fit: BoxFit.cover,
+                loadingBuilder: (context, child, loadingProgress) {
+                  if (loadingProgress == null) return child;
+                  return SizedBox(
+                    height: 150,
+                    child: Center(
+                      child: CircularProgressIndicator(
+                        value: loadingProgress.expectedTotalBytes != null
+                            ? loadingProgress.cumulativeBytesLoaded /
+                                loadingProgress.expectedTotalBytes!
+                            : null,
+                      ),
+                    ),
+                  );
+                },
+                errorBuilder: (context, error, stackTrace) {
+                  return SizedBox(
+                    height: 150,
+                    child: Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(Icons.error, color: Colors.red),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Error loading image',
+                            style: TextStyle(
+                                color: Colors.grey[700], fontSize: 12),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(12.0),
+              child: Text(
+                title,
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Save analysis results to Firestore
+  Future<void> _saveAnalysisToFirestore(SceneAnalysisJob job) async {
+    if (!job.hasResults || !job.hasCloudLinks) {
+      _showErrorDialog('Cannot save analysis: results or cloud links missing');
+      return;
+    }
+
+    _showLoadingDialog('Saving analysis to Firestore...');
+
+    try {
+      // Create a map to store in Firestore
+      final analysisData = {
+        'job_id': job.jobId,
+        'room': job.room,
+        'timestamp': DateTime.now().toIso8601String(),
+        'detection_count': job.detectionCount,
+        'class_summary': job.classSummary,
+        'summary': job.summary,
+        'cloud_links': job.cloudLinks,
+      };
+
+      // Save to Firestore
+      await FirebaseFirestore.instance
+          .collection('scene_analysis_results')
+          .add(analysisData);
+
+      // Close loading dialog
+      Navigator.pop(context);
+
+      // Show success message
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Analysis saved successfully'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      // Close loading dialog
+      Navigator.pop(context);
+
+      // Show error dialog
+      _showErrorDialog('Error saving analysis: $e');
+    }
+  }
+
+  // Helper to get icon for object class
+  IconData _getIconForClass(String className) {
+    switch (className.toLowerCase()) {
+      case 'chair':
+        return Icons.chair;
+      case 'table':
+      case 'dining table':
+        return Icons.table_restaurant;
+      case 'sofa':
+      case 'couch':
+        return Icons.weekend;
+      case 'bed':
+        return Icons.bed;
+      case 'laptop':
+      case 'computer':
+        return Icons.laptop;
+      case 'tv':
+      case 'television':
+        return Icons.tv;
+      case 'book':
+        return Icons.book;
+      case 'cup':
+      case 'glass':
+        return Icons.local_drink;
+      case 'bottle':
+        return Icons.liquor;
+      case 'remote':
+        return Icons.cast;
+      case 'clock':
+        return Icons.access_time;
+      case 'vase':
+        return Icons.local_florist;
+      case 'sports ball':
+      case 'ball':
+        return Icons.sports_basketball;
+      case 'backpack':
+        return Icons.backpack;
+      default:
+        return Icons.category;
+    }
+  }
+
+  // Helper to capitalize first letter of a string
+  String _capitalizeFirstLetter(String text) {
+    if (text.isEmpty) return text;
+    return text[0].toUpperCase() + text.substring(1);
   }
 
   Widget _buildRoomScanContent() {

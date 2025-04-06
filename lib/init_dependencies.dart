@@ -21,6 +21,8 @@ import 'package:codeshastraxi_overload_oblivion/features/auth/domain/usecases/us
 import 'package:codeshastraxi_overload_oblivion/features/auth/domain/usecases/verify_user_email.dart';
 import 'package:codeshastraxi_overload_oblivion/features/auth/presentation/bloc/auth_bloc.dart';
 import 'package:codeshastraxi_overload_oblivion/features/space_monitor/presentation/cubit/space_optimization_cubit.dart';
+import 'package:codeshastraxi_overload_oblivion/features/space_monitor/data/repositories/scene_analysis_repository.dart';
+import 'package:codeshastraxi_overload_oblivion/features/space_monitor/presentation/cubits/scene_analysis_cubit.dart';
 //import 'package:codeshastraxi_overload_oblivion/services/notification_service.dart';
 
 final serviceLocator = GetIt.instance;
@@ -46,14 +48,20 @@ Future<void> initDependencies() async {
       () => CheckInternetConnectionImpl(
             serviceLocator(),
           ));
-  
+
   // Register API Service
   serviceLocator.registerLazySingleton<ApiService>(() => ApiService());
-  
+
   // Register SpaceOptimizationCubit
-  serviceLocator.registerFactory<SpaceOptimizationCubit>(
-    () => SpaceOptimizationCubit()
-  );
+  serviceLocator
+      .registerFactory<SpaceOptimizationCubit>(() => SpaceOptimizationCubit());
+
+  // Register Scene Analysis Repository and Cubit
+  serviceLocator.registerLazySingleton<SceneAnalysisRepository>(
+      () => SceneAnalysisRepository(firestore: serviceLocator()));
+
+  serviceLocator.registerFactory<SceneAnalysisCubit>(
+      () => SceneAnalysisCubit(serviceLocator()));
 
   // Initialize AuthUserCubit with Firebase Auth
   serviceLocator.registerLazySingleton<AuthUserCubit>(

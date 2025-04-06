@@ -17,19 +17,19 @@ class AnalysisPage extends StatefulWidget {
 class _AnalysisPageState extends State<AnalysisPage> {
   VideoPlayerController? _videoController;
   late SpaceOptimizationCubit _optimizationCubit;
-  
+
   @override
   void initState() {
     super.initState();
     _optimizationCubit = GetIt.instance<SpaceOptimizationCubit>();
   }
-  
+
   @override
   void dispose() {
     _videoController?.dispose();
     super.dispose();
   }
-  
+
   @override
   Widget build(BuildContext context) {
     return BlocProvider<SpaceOptimizationCubit>.value(
@@ -53,7 +53,8 @@ class _AnalysisPageState extends State<AnalysisPage> {
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+                    color:
+                        Theme.of(context).colorScheme.primary.withOpacity(0.1),
                     borderRadius: BorderRadius.circular(15),
                   ),
                   child: Column(
@@ -61,9 +62,10 @@ class _AnalysisPageState extends State<AnalysisPage> {
                     children: [
                       Text(
                         'Space Analysis',
-                        style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                              fontWeight: FontWeight.bold,
-                            ),
+                        style:
+                            Theme.of(context).textTheme.headlineSmall?.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                ),
                       ),
                       const SizedBox(height: 8),
                       Text(
@@ -76,7 +78,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
                   ),
                 ),
                 const SizedBox(height: 20),
-                
+
                 // Space Optimization Card
                 InkWell(
                   onTap: () => _showMediaOptionsBottomSheet(context, state),
@@ -103,7 +105,10 @@ class _AnalysisPageState extends State<AnalysisPage> {
                             Container(
                               padding: const EdgeInsets.all(12),
                               decoration: BoxDecoration(
-                                color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .primary
+                                    .withOpacity(0.1),
                                 borderRadius: BorderRadius.circular(8),
                               ),
                               child: Icon(
@@ -118,14 +123,20 @@ class _AnalysisPageState extends State<AnalysisPage> {
                                 children: [
                                   Text(
                                     'Space Optimization',
-                                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .titleMedium
+                                        ?.copyWith(
                                           fontWeight: FontWeight.bold,
                                         ),
                                   ),
                                   const SizedBox(height: 4),
                                   Text(
                                     'Upload media to get optimization suggestions',
-                                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .bodySmall
+                                        ?.copyWith(
                                           color: Colors.grey[600],
                                         ),
                                   ),
@@ -138,7 +149,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
                             ),
                           ],
                         ),
-                        
+
                         // Show content based on state
                         if (state is SpaceOptimizationLoading) ...[
                           const SizedBox(height: 16),
@@ -149,7 +160,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
                             ),
                           ),
                         ],
-                        
+
                         if (state is SpaceOptimizationFailure) ...[
                           const SizedBox(height: 16),
                           Container(
@@ -160,7 +171,8 @@ class _AnalysisPageState extends State<AnalysisPage> {
                             ),
                             child: Row(
                               children: [
-                                const Icon(Icons.error_outline, color: Colors.red),
+                                const Icon(Icons.error_outline,
+                                    color: Colors.red),
                                 const SizedBox(width: 12),
                                 Expanded(
                                   child: Text(
@@ -172,9 +184,10 @@ class _AnalysisPageState extends State<AnalysisPage> {
                             ),
                           ),
                         ],
-                        
+
                         // Results - Image
-                        if (state is SpaceOptimizationSuccess && !state.isVideo) ...[
+                        if (state is SpaceOptimizationSuccess &&
+                            !state.isVideo) ...[
                           const SizedBox(height: 16),
                           ClipRRect(
                             borderRadius: BorderRadius.circular(8),
@@ -194,15 +207,18 @@ class _AnalysisPageState extends State<AnalysisPage> {
                             ),
                           ),
                         ],
-                        
+
                         // Results - Video
-                        if (state is SpaceOptimizationSuccess && state.isVideo) ...[
+                        if (state is SpaceOptimizationSuccess &&
+                            state.isVideo) ...[
                           const SizedBox(height: 16),
-                          if (_videoController != null && _videoController!.value.isInitialized)
+                          if (_videoController != null &&
+                              _videoController!.value.isInitialized)
                             ClipRRect(
                               borderRadius: BorderRadius.circular(8),
                               child: AspectRatio(
-                                aspectRatio: _videoController!.value.aspectRatio,
+                                aspectRatio:
+                                    _videoController!.value.aspectRatio,
                                 child: Stack(
                                   alignment: Alignment.bottomCenter,
                                   children: [
@@ -251,9 +267,9 @@ class _AnalysisPageState extends State<AnalysisPage> {
                     ),
                   ),
                 ),
-                
+
                 const SizedBox(height: 16),
-                
+
                 // Object Movement Analysis Card
                 _buildAnalysisCard(
                   context: context,
@@ -262,16 +278,16 @@ class _AnalysisPageState extends State<AnalysisPage> {
                   icon: Icons.move_up,
                   onTap: () {},
                 ),
-                
+
                 const SizedBox(height: 16),
-                
-                // Pattern Recognition Card
+
+                // Compare Two Scans Card
                 _buildAnalysisCard(
                   context: context,
-                  title: 'Pattern Recognition',
-                  description: 'Identify usage patterns and trends',
-                  icon: Icons.trending_up,
-                  onTap: () {},
+                  title: 'Compare Two Scans',
+                  description: 'Compare different scans to identify changes',
+                  icon: Icons.compare_arrows,
+                  onTap: () => _showCompareScansDialog(context),
                 ),
               ],
             ),
@@ -280,7 +296,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
       ),
     );
   }
-  
+
   Widget _buildAnalysisCard({
     required BuildContext context,
     required String title,
@@ -348,7 +364,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
       ),
     );
   }
-  
+
   Widget _buildMediaOptionCard({
     required BuildContext context,
     required String title,
@@ -388,12 +404,14 @@ class _AnalysisPageState extends State<AnalysisPage> {
       ),
     );
   }
-  
-  void _showMediaOptionsBottomSheet(BuildContext context, SpaceOptimizationState state) {
-    if (state is SpaceOptimizationSuccess || state is SpaceOptimizationLoading) {
+
+  void _showMediaOptionsBottomSheet(
+      BuildContext context, SpaceOptimizationState state) {
+    if (state is SpaceOptimizationSuccess ||
+        state is SpaceOptimizationLoading) {
       return;
     }
-    
+
     showModalBottomSheet(
       context: context,
       shape: const RoundedRectangleBorder(
@@ -448,7 +466,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
       ),
     );
   }
-  
+
   void _showImageSourceDialog(BuildContext context) {
     showDialog(
       context: context,
@@ -478,7 +496,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
       ),
     );
   }
-  
+
   void _showVideoSourceDialog(BuildContext context) {
     showDialog(
       context: context,
@@ -504,6 +522,195 @@ class _AnalysisPageState extends State<AnalysisPage> {
               },
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  void _showCompareScansDialog(BuildContext context) {
+    // Variables to store the selected scans
+    String? firstScanRoom;
+    String? secondScanRoom;
+    DateTime? firstScanDate;
+    DateTime? secondScanDate;
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(builder: (context, setState) {
+          return AlertDialog(
+            title: const Text('Compare Two Scans'),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Select the first scan:'),
+                  const SizedBox(height: 8),
+                  _buildScanSelector(
+                    context: context,
+                    selectedRoom: firstScanRoom,
+                    selectedDate: firstScanDate,
+                    onRoomChanged: (room) {
+                      setState(() {
+                        firstScanRoom = room;
+                      });
+                    },
+                    onDateChanged: (date) {
+                      setState(() {
+                        firstScanDate = date;
+                      });
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  const Text('Select the second scan:'),
+                  const SizedBox(height: 8),
+                  _buildScanSelector(
+                    context: context,
+                    selectedRoom: secondScanRoom,
+                    selectedDate: secondScanDate,
+                    onRoomChanged: (room) {
+                      setState(() {
+                        secondScanRoom = room;
+                      });
+                    },
+                    onDateChanged: (date) {
+                      setState(() {
+                        secondScanDate = date;
+                      });
+                    },
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                onPressed: (firstScanRoom != null &&
+                        firstScanDate != null &&
+                        secondScanRoom != null &&
+                        secondScanDate != null)
+                    ? () {
+                        Navigator.pop(context);
+                        _performScanComparison(
+                          context,
+                          firstScanRoom!,
+                          firstScanDate!,
+                          secondScanRoom!,
+                          secondScanDate!,
+                        );
+                      }
+                    : null,
+                child: const Text('Compare'),
+              ),
+            ],
+          );
+        });
+      },
+    );
+  }
+
+  Widget _buildScanSelector({
+    required BuildContext context,
+    required String? selectedRoom,
+    required DateTime? selectedDate,
+    required Function(String) onRoomChanged,
+    required Function(DateTime) onDateChanged,
+  }) {
+    // This would typically fetch rooms from your Firebase collection
+    final rooms = ['Room 202', 'Room 300', 'Living Room', 'Kitchen'];
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.grey.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Room selector
+          DropdownButtonFormField<String>(
+            decoration: const InputDecoration(
+              labelText: 'Room',
+              border: OutlineInputBorder(),
+            ),
+            value: selectedRoom,
+            items: rooms.map((room) {
+              return DropdownMenuItem<String>(
+                value: room,
+                child: Text(room),
+              );
+            }).toList(),
+            onChanged: (value) {
+              if (value != null) {
+                onRoomChanged(value);
+              }
+            },
+          ),
+
+          const SizedBox(height: 12),
+
+          // Date selector
+          InkWell(
+            onTap: () async {
+              final date = await showDatePicker(
+                context: context,
+                initialDate: DateTime.now(),
+                firstDate: DateTime(2020),
+                lastDate: DateTime.now(),
+              );
+
+              if (date != null) {
+                onDateChanged(date);
+              }
+            },
+            child: InputDecorator(
+              decoration: const InputDecoration(
+                labelText: 'Date',
+                border: OutlineInputBorder(),
+                suffixIcon: Icon(Icons.calendar_today),
+              ),
+              child: Text(
+                selectedDate != null
+                    ? '${selectedDate.day}/${selectedDate.month}/${selectedDate.year}'
+                    : 'Select a date',
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _performScanComparison(
+    BuildContext context,
+    String firstRoom,
+    DateTime firstDate,
+    String secondRoom,
+    DateTime secondDate,
+  ) {
+    // In a real app, you would:
+    // 1. Query Firestore for the two scans
+    // 2. Compare the results
+    // 3. Show the comparison results
+
+    // For now, we'll show a snackbar with the selected scan info
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          'Comparing scan from $firstRoom on ${firstDate.day}/${firstDate.month}/${firstDate.year} '
+          'with scan from $secondRoom on ${secondDate.day}/${secondDate.month}/${secondDate.year}',
+        ),
+        duration: const Duration(seconds: 4),
+        action: SnackBarAction(
+          label: 'View',
+          onPressed: () {
+            // Here you would navigate to a detailed comparison view
+          },
         ),
       ),
     );
