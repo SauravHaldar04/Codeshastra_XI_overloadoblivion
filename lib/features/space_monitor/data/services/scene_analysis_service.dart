@@ -5,7 +5,7 @@ import 'package:http_parser/http_parser.dart';
 
 // Global constant for the API base URL
 const String sceneAnalysisApiBaseUrl =
-    'https://d673-34-133-132-90.ngrok-free.app';
+    'https://4b1c-35-227-135-58.ngrok-free.app';
 
 class SceneAnalysisService {
   static final SceneAnalysisService _instance =

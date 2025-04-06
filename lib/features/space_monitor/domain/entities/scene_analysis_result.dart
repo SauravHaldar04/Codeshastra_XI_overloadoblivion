@@ -60,8 +60,8 @@ class CloudLink {
     );
   }
 
-  // Check if this link is valid (has a non-empty secureUrl)
-  bool get isValid => secureUrl.isNotEmpty;
+  // Check if this link is valid (has a non-empty URL)
+  bool get isValid => url.isNotEmpty && url.startsWith('http');
 }
 
 class CloudImages {

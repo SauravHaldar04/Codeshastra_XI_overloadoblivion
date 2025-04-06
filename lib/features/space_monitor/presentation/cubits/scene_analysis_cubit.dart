@@ -18,15 +18,18 @@ class SceneAnalysisLoaded extends SceneAnalysisState {
   final Map<String, SceneAnalysisResult> latestAnalysisByRoom;
   final List<String> allRooms;
   final int totalObjectCount;
+  final List<SceneAnalysisResult> results;
 
   SceneAnalysisLoaded({
     required this.latestAnalysisByRoom,
     required this.allRooms,
     required this.totalObjectCount,
+    this.results = const [],
   });
 
   @override
-  List<Object?> get props => [latestAnalysisByRoom, allRooms, totalObjectCount];
+  List<Object?> get props =>
+      [latestAnalysisByRoom, allRooms, totalObjectCount, results];
 }
 
 class SceneAnalysisError extends SceneAnalysisState {
@@ -58,8 +61,33 @@ class SceneAnalysisCubit extends Cubit<SceneAnalysisState> {
   StreamSubscription? _roomsSubscription;
   StreamSubscription? _totalObjectsSubscription;
   StreamSubscription? _roomDetailSubscription;
+  StreamSubscription? _allResultsSubscription;
 
   SceneAnalysisCubit(this._repository) : super(SceneAnalysisInitial());
+
+  // Load all scene analysis results
+  void loadSceneAnalysisResults() {
+    emit(SceneAnalysisLoading());
+
+    try {
+      _allResultsSubscription?.cancel();
+      _allResultsSubscription = _repository.getSceneAnalysisResults().listen(
+        (results) {
+          emit(SceneAnalysisLoaded(
+            latestAnalysisByRoom: {},
+            allRooms: results.map((r) => r.room).toSet().toList()..sort(),
+            totalObjectCount: 0,
+            results: results,
+          ));
+        },
+        onError: (error) {
+          emit(SceneAnalysisError('Error loading results: $error'));
+        },
+      );
+    } catch (e) {
+      emit(SceneAnalysisError('Failed to load results: $e'));
+    }
+  }
 
   // Load data for dashboard
   void loadDashboardData() {
@@ -163,6 +191,7 @@ class SceneAnalysisCubit extends Cubit<SceneAnalysisState> {
     _roomsSubscription?.cancel();
     _totalObjectsSubscription?.cancel();
     _roomDetailSubscription?.cancel();
+    _allResultsSubscription?.cancel();
     return super.close();
   }
 }

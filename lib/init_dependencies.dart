@@ -23,6 +23,8 @@ import 'package:codeshastraxi_overload_oblivion/features/auth/presentation/bloc/
 import 'package:codeshastraxi_overload_oblivion/features/space_monitor/presentation/cubit/space_optimization_cubit.dart';
 import 'package:codeshastraxi_overload_oblivion/features/space_monitor/data/repositories/scene_analysis_repository.dart';
 import 'package:codeshastraxi_overload_oblivion/features/space_monitor/presentation/cubits/scene_analysis_cubit.dart';
+import 'package:codeshastraxi_overload_oblivion/features/space_monitor/data/services/scene_comparison_service.dart';
+import 'package:codeshastraxi_overload_oblivion/features/space_monitor/presentation/cubits/scene_comparison_cubit.dart';
 //import 'package:codeshastraxi_overload_oblivion/services/notification_service.dart';
 
 final serviceLocator = GetIt.instance;
@@ -62,6 +64,13 @@ Future<void> initDependencies() async {
 
   serviceLocator.registerFactory<SceneAnalysisCubit>(
       () => SceneAnalysisCubit(serviceLocator()));
+
+  // Scene Comparison
+  serviceLocator.registerLazySingleton(() => SceneComparisonService());
+  serviceLocator.registerFactory(() => SceneComparisonCubit(
+        firestore: serviceLocator(),
+        comparisonService: serviceLocator(),
+      ));
 
   // Initialize AuthUserCubit with Firebase Auth
   serviceLocator.registerLazySingleton<AuthUserCubit>(

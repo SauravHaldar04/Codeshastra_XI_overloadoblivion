@@ -3,6 +3,7 @@ import 'package:codeshastraxi_overload_oblivion/features/space_monitor/presentat
 import 'package:codeshastraxi_overload_oblivion/features/space_monitor/presentation/pages/scan_page.dart';
 import 'package:codeshastraxi_overload_oblivion/features/space_monitor/presentation/pages/analysis_page.dart';
 import 'package:codeshastraxi_overload_oblivion/features/space_monitor/presentation/pages/chatbot_page.dart';
+import 'package:codeshastraxi_overload_oblivion/features/space_monitor/presentation/pages/results_page.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -25,6 +26,7 @@ class _LayoutPageState extends State<LayoutPage> {
     const DashboardPage(),
     const ScanPage(),
     const AnalysisPage(),
+    const ResultsPage(),
     const ChatbotPage(),
   ];
 
@@ -47,6 +49,12 @@ class _LayoutPageState extends State<LayoutPage> {
       activeIcon: Icons.analytics,
       label: 'Analysis',
       color: Pallete.accentColor,
+    ),
+    NavItem(
+      icon: Icons.format_list_bulleted_outlined,
+      activeIcon: Icons.format_list_bulleted,
+      label: 'Results',
+      color: Pallete.secondaryColor,
     ),
     NavItem(
       icon: Icons.chat_outlined,

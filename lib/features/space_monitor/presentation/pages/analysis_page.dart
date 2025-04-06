@@ -6,6 +6,9 @@ import 'package:video_player/video_player.dart';
 import 'package:get_it/get_it.dart';
 import 'package:codeshastraxi_overload_oblivion/features/space_monitor/presentation/cubit/space_optimization_cubit.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:intl/intl.dart';
+import 'package:codeshastraxi_overload_oblivion/features/space_monitor/presentation/pages/scene_comparison_page.dart';
 
 class AnalysisPage extends StatefulWidget {
   const AnalysisPage({super.key});
@@ -287,7 +290,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
                   title: 'Compare Two Scans',
                   description: 'Compare different scans to identify changes',
                   icon: Icons.compare_arrows,
-                  onTap: () => _showCompareScansDialog(context),
+                  onTap: () => _showCompareScansDialog(),
                 ),
               ],
             ),
@@ -527,192 +530,248 @@ class _AnalysisPageState extends State<AnalysisPage> {
     );
   }
 
-  void _showCompareScansDialog(BuildContext context) {
-    // Variables to store the selected scans
-    String? firstScanRoom;
-    String? secondScanRoom;
-    DateTime? firstScanDate;
-    DateTime? secondScanDate;
+  void _showCompareScansDialog() {
+    bool isLoading = true;
+    Map<String, List<String>> roomScans = {};
+    String? selectedFirstRoom;
+    String? selectedFirstScan;
+    String? selectedSecondRoom;
+    String? selectedSecondScan;
+
+    Future<void> fetchAvailableScans() async {
+      try {
+        final sceneAnalysisCollection =
+            FirebaseFirestore.instance.collection('scene_analysis_result');
+        final querySnapshot = await sceneAnalysisCollection.get();
+
+        // Process documents and organize by room name
+        for (var doc in querySnapshot.docs) {
+          final data = doc.data();
+          final roomName = data['room_name'] as String?;
+          final timestamp = data['timestamp'] as String?;
+
+          if (roomName != null && timestamp != null) {
+            if (!roomScans.containsKey(roomName)) {
+              roomScans[roomName] = [];
+            }
+            roomScans[roomName]!.add(timestamp);
+          }
+        }
+
+        // Sort timestamps for each room - most recent first
+        for (var room in roomScans.keys) {
+          roomScans[room]!.sort((a, b) => b.compareTo(a));
+        }
+      } catch (e) {
+        debugPrint('Error fetching scans: $e');
+      }
+    }
 
     showDialog(
       context: context,
       builder: (context) {
-        return StatefulBuilder(builder: (context, setState) {
-          return AlertDialog(
-            title: const Text('Compare Two Scans'),
-            content: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text('Select the first scan:'),
-                  const SizedBox(height: 8),
-                  _buildScanSelector(
-                    context: context,
-                    selectedRoom: firstScanRoom,
-                    selectedDate: firstScanDate,
-                    onRoomChanged: (room) {
-                      setState(() {
-                        firstScanRoom = room;
-                      });
+        return StatefulBuilder(
+          builder: (context, setState) {
+            // Fetch scans when dialog opens
+            if (isLoading) {
+              fetchAvailableScans().then((_) {
+                if (roomScans.isNotEmpty) {
+                  setState(() {
+                    selectedFirstRoom = roomScans.keys.first;
+                    if (roomScans[selectedFirstRoom]!.length > 0) {
+                      selectedFirstScan = roomScans[selectedFirstRoom]![0];
+                    }
+
+                    selectedSecondRoom = roomScans.keys.first;
+                    if (roomScans[selectedSecondRoom]!.length > 1) {
+                      selectedSecondScan = roomScans[selectedSecondRoom]![1];
+                    } else if (roomScans[selectedSecondRoom]!.length > 0) {
+                      selectedSecondScan = roomScans[selectedSecondRoom]![0];
+                    }
+
+                    isLoading = false;
+                  });
+                } else {
+                  setState(() {
+                    isLoading = false;
+                  });
+                }
+              });
+            }
+
+            return AlertDialog(
+              title: const Text('Compare Scans'),
+              content: isLoading
+                  ? const SizedBox(
+                      height: 100,
+                      child: Center(
+                        child: CircularProgressIndicator(),
+                      ),
+                    )
+                  : roomScans.isEmpty
+                      ? const Text('No scans available for comparison')
+                      : SizedBox(
+                          width: double.maxFinite,
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Text('First Scan (Before):'),
+                              _buildScanSelector(
+                                roomScans,
+                                selectedFirstRoom,
+                                selectedFirstScan,
+                                (room) {
+                                  setState(() {
+                                    selectedFirstRoom = room;
+                                    if (roomScans[room]!.isNotEmpty) {
+                                      selectedFirstScan = roomScans[room]![0];
+                                    } else {
+                                      selectedFirstScan = null;
+                                    }
+                                  });
+                                },
+                                (scan) {
+                                  setState(() {
+                                    selectedFirstScan = scan;
+                                  });
+                                },
+                              ),
+                              const SizedBox(height: 16),
+                              const Text('Second Scan (After):'),
+                              _buildScanSelector(
+                                roomScans,
+                                selectedSecondRoom,
+                                selectedSecondScan,
+                                (room) {
+                                  setState(() {
+                                    selectedSecondRoom = room;
+                                    if (roomScans[room]!.isNotEmpty) {
+                                      selectedSecondScan = roomScans[room]![0];
+                                    } else {
+                                      selectedSecondScan = null;
+                                    }
+                                  });
+                                },
+                                (scan) {
+                                  setState(() {
+                                    selectedSecondScan = scan;
+                                  });
+                                },
+                              ),
+                            ],
+                          ),
+                        ),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                  },
+                  child: const Text('Cancel'),
+                ),
+                if (!isLoading && roomScans.isNotEmpty)
+                  TextButton(
+                    onPressed: () {
+                      _performScanComparison(
+                        selectedFirstRoom!,
+                        selectedFirstScan!,
+                        selectedSecondRoom!,
+                        selectedSecondScan!,
+                      );
+                      Navigator.of(context).pop();
                     },
-                    onDateChanged: (date) {
-                      setState(() {
-                        firstScanDate = date;
-                      });
-                    },
+                    child: const Text('Compare'),
                   ),
-                  const SizedBox(height: 16),
-                  const Text('Select the second scan:'),
-                  const SizedBox(height: 8),
-                  _buildScanSelector(
-                    context: context,
-                    selectedRoom: secondScanRoom,
-                    selectedDate: secondScanDate,
-                    onRoomChanged: (room) {
-                      setState(() {
-                        secondScanRoom = room;
-                      });
-                    },
-                    onDateChanged: (date) {
-                      setState(() {
-                        secondScanDate = date;
-                      });
-                    },
-                  ),
-                ],
-              ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('Cancel'),
-              ),
-              ElevatedButton(
-                onPressed: (firstScanRoom != null &&
-                        firstScanDate != null &&
-                        secondScanRoom != null &&
-                        secondScanDate != null)
-                    ? () {
-                        Navigator.pop(context);
-                        _performScanComparison(
-                          context,
-                          firstScanRoom!,
-                          firstScanDate!,
-                          secondScanRoom!,
-                          secondScanDate!,
-                        );
-                      }
-                    : null,
-                child: const Text('Compare'),
-              ),
-            ],
-          );
-        });
+              ],
+            );
+          },
+        );
       },
     );
   }
 
-  Widget _buildScanSelector({
-    required BuildContext context,
-    required String? selectedRoom,
-    required DateTime? selectedDate,
-    required Function(String) onRoomChanged,
-    required Function(DateTime) onDateChanged,
-  }) {
-    // This would typically fetch rooms from your Firebase collection
-    final rooms = ['Room 202', 'Room 300', 'Living Room', 'Kitchen'];
-
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.grey.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Room selector
-          DropdownButtonFormField<String>(
-            decoration: const InputDecoration(
-              labelText: 'Room',
-              border: OutlineInputBorder(),
-            ),
-            value: selectedRoom,
-            items: rooms.map((room) {
+  Widget _buildScanSelector(
+    Map<String, List<String>> roomScans,
+    String? selectedRoom,
+    String? selectedScan,
+    Function(String) onRoomChanged,
+    Function(String) onScanChanged,
+  ) {
+    return Column(
+      children: [
+        DropdownButton<String>(
+          isExpanded: true,
+          value: selectedRoom,
+          items: roomScans.keys.map((room) {
+            return DropdownMenuItem<String>(
+              value: room,
+              child: Text(room),
+            );
+          }).toList(),
+          onChanged: (value) {
+            if (value != null) {
+              onRoomChanged(value);
+            }
+          },
+        ),
+        if (selectedRoom != null && roomScans[selectedRoom]!.isNotEmpty)
+          DropdownButton<String>(
+            isExpanded: true,
+            value: selectedScan,
+            items: roomScans[selectedRoom]!.map((scan) {
+              // Format date for display
+              final dateTime = DateTime.parse(scan);
+              final formattedDate =
+                  DateFormat('MMM d, y HH:mm').format(dateTime);
               return DropdownMenuItem<String>(
-                value: room,
-                child: Text(room),
+                value: scan,
+                child: Text(formattedDate),
               );
             }).toList(),
             onChanged: (value) {
               if (value != null) {
-                onRoomChanged(value);
+                onScanChanged(value);
               }
             },
           ),
-
-          const SizedBox(height: 12),
-
-          // Date selector
-          InkWell(
-            onTap: () async {
-              final date = await showDatePicker(
-                context: context,
-                initialDate: DateTime.now(),
-                firstDate: DateTime(2020),
-                lastDate: DateTime.now(),
-              );
-
-              if (date != null) {
-                onDateChanged(date);
-              }
-            },
-            child: InputDecorator(
-              decoration: const InputDecoration(
-                labelText: 'Date',
-                border: OutlineInputBorder(),
-                suffixIcon: Icon(Icons.calendar_today),
-              ),
-              child: Text(
-                selectedDate != null
-                    ? '${selectedDate.day}/${selectedDate.month}/${selectedDate.year}'
-                    : 'Select a date',
-              ),
-            ),
-          ),
-        ],
-      ),
+      ],
     );
   }
 
   void _performScanComparison(
-    BuildContext context,
     String firstRoom,
-    DateTime firstDate,
+    String firstTimestamp,
     String secondRoom,
-    DateTime secondDate,
+    String secondTimestamp,
   ) {
-    // In a real app, you would:
-    // 1. Query Firestore for the two scans
-    // 2. Compare the results
-    // 3. Show the comparison results
+    // Determine which scan is earlier to set as "before"
+    final firstDate = DateTime.parse(firstTimestamp);
+    final secondDate = DateTime.parse(secondTimestamp);
 
-    // For now, we'll show a snackbar with the selected scan info
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          'Comparing scan from $firstRoom on ${firstDate.day}/${firstDate.month}/${firstDate.year} '
-          'with scan from $secondRoom on ${secondDate.day}/${secondDate.month}/${secondDate.year}',
+    // Navigate to comparison page with the correct order of scans
+    if (firstDate.isBefore(secondDate)) {
+      // First scan is earlier, so it's the "before" scan
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (context) => SceneComparisonPage(
+            beforeRoom: firstRoom,
+            beforeTimestamp: firstTimestamp,
+            afterRoom: secondRoom,
+            afterTimestamp: secondTimestamp,
+          ),
         ),
-        duration: const Duration(seconds: 4),
-        action: SnackBarAction(
-          label: 'View',
-          onPressed: () {
-            // Here you would navigate to a detailed comparison view
-          },
+      );
+    } else {
+      // Second scan is earlier or same time, so it's the "before" scan
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (context) => SceneComparisonPage(
+            beforeRoom: secondRoom,
+            beforeTimestamp: secondTimestamp,
+            afterRoom: firstRoom,
+            afterTimestamp: firstTimestamp,
+          ),
         ),
-      ),
-    );
+      );
+    }
   }
 }
