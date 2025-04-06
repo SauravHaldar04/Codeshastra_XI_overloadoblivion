@@ -8,7 +8,7 @@ import 'package:codeshastraxi_overload_oblivion/features/space_monitor/presentat
 import 'package:image_picker/image_picker.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
-import 'package:codeshastraxi_overload_oblivion/features/space_monitor/presentation/pages/scene_comparison_page.dart';
+import 'scene_comparison_page.dart';
 
 class AnalysisPage extends StatefulWidget {
   const AnalysisPage({super.key});
@@ -541,7 +541,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
     Future<void> fetchAvailableScans() async {
       try {
         final sceneAnalysisCollection =
-            FirebaseFirestore.instance.collection('scene_analysis_result');
+            FirebaseFirestore.instance.collection('scene_analysis_results');
         final querySnapshot = await sceneAnalysisCollection.get();
 
         // Process documents and organize by room name

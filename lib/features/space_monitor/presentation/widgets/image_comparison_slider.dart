@@ -17,7 +17,7 @@ class ImageComparisonSlider extends StatefulWidget {
 
 class _ImageComparisonSliderState extends State<ImageComparisonSlider> {
   double _sliderPosition = 0.5;
-  final double _imageHeight = 250;
+  final double _imageHeight = 250.0;
 
   @override
   Widget build(BuildContext context) {
@@ -25,18 +25,29 @@ class _ImageComparisonSliderState extends State<ImageComparisonSlider> {
       height: _imageHeight,
       child: LayoutBuilder(
         builder: (context, constraints) {
-          final maxWidth = constraints.maxWidth;
+          final width = constraints.maxWidth;
+
           return Stack(
             children: [
               // After image (full width)
-              Container(
-                width: maxWidth,
+              SizedBox(
+                width: width,
                 height: _imageHeight,
-                decoration: BoxDecoration(
-                  image: DecorationImage(
-                    image: MemoryImage(widget.afterImage),
-                    fit: BoxFit.cover,
-                  ),
+                child: Image.memory(
+                  widget.afterImage,
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) {
+                    debugPrint('Error loading after image: $error');
+                    return Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.error, color: Colors.red[300]),
+                          const Text('Error loading image'),
+                        ],
+                      ),
+                    );
+                  },
                 ),
               ),
 
@@ -45,24 +56,34 @@ class _ImageComparisonSliderState extends State<ImageComparisonSlider> {
                 child: Align(
                   alignment: Alignment.centerLeft,
                   widthFactor: _sliderPosition,
-                  child: Container(
-                    width: maxWidth,
+                  child: SizedBox(
+                    width: width,
                     height: _imageHeight,
-                    decoration: BoxDecoration(
-                      image: DecorationImage(
-                        image: MemoryImage(widget.beforeImage),
-                        fit: BoxFit.cover,
-                      ),
+                    child: Image.memory(
+                      widget.beforeImage,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) {
+                        debugPrint('Error loading before image: $error');
+                        return Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.error, color: Colors.red[300]),
+                              const Text('Error loading image'),
+                            ],
+                          ),
+                        );
+                      },
                     ),
                   ),
                 ),
               ),
 
-              // Slider divider
+              // Slider divider line
               Positioned(
-                left: maxWidth * _sliderPosition - 12,
                 top: 0,
                 bottom: 0,
+                left: width * _sliderPosition - 1,
                 child: Container(
                   width: 2,
                   color: Colors.white,
@@ -71,86 +92,77 @@ class _ImageComparisonSliderState extends State<ImageComparisonSlider> {
 
               // Slider handle
               Positioned(
-                left: maxWidth * _sliderPosition - 16,
-                top: (_imageHeight / 2) - 16,
-                child: Container(
-                  width: 32,
-                  height: 32,
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.3),
-                        blurRadius: 5,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  child: const Icon(
-                    Icons.compare_arrows,
-                    color: Colors.black,
-                    size: 20,
-                  ),
-                ),
-              ),
-
-              // Labels
-              Positioned(
-                left: 8,
-                top: 8,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(0.6),
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: const Text(
-                    'Before',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ),
-              Positioned(
-                right: 8,
-                top: 8,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(0.6),
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: const Text(
-                    'After',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ),
-
-              // Gesture detection for slider
-              Positioned.fill(
+                top: (_imageHeight / 2) - 15,
+                left: width * _sliderPosition - 15,
                 child: GestureDetector(
                   onHorizontalDragUpdate: (details) {
                     setState(() {
-                      _sliderPosition =
-                          (_sliderPosition + details.delta.dx / maxWidth)
-                              .clamp(0.0, 1.0);
+                      _sliderPosition += details.delta.dx / width;
+                      // Clamp slider position to range 0.0 - 1.0
+                      _sliderPosition = _sliderPosition.clamp(0.0, 1.0);
                     });
                   },
+                  child: Container(
+                    height: 30,
+                    width: 30,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.5),
+                          spreadRadius: 1,
+                          blurRadius: 3,
+                          offset: const Offset(0, 1),
+                        ),
+                      ],
+                    ),
+                    child: const Icon(
+                      Icons.compare_arrows,
+                      size: 16,
+                      color: Colors.blueGrey,
+                    ),
+                  ),
+                ),
+              ),
+
+              // Before label
+              const Positioned(
+                top: 10,
+                left: 10,
+                child: Text(
+                  'Before',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    shadows: [
+                      Shadow(
+                        offset: Offset(1.0, 1.0),
+                        blurRadius: 3.0,
+                        color: Colors.black54,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+              // After label
+              const Positioned(
+                top: 10,
+                right: 10,
+                child: Text(
+                  'After',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    shadows: [
+                      Shadow(
+                        offset: Offset(1.0, 1.0),
+                        blurRadius: 3.0,
+                        color: Colors.black54,
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ],
