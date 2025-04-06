@@ -163,8 +163,8 @@ class SceneComparisonCubit extends Cubit<SceneComparisonState> {
 
   // Start comparison process
   Future<void> startComparison({
-    required Uint8List beforeImage,
-    required Uint8List afterImage,
+    required String beforeImageUrl,
+    required String afterImageUrl,
     required String beforeRoom,
     required String beforeTimestamp,
     required String afterRoom,
@@ -174,15 +174,15 @@ class SceneComparisonCubit extends Cubit<SceneComparisonState> {
 
     try {
       // Start the comparison job
-      final jobId = await _comparisonService.startComparisonJob(
-        beforeImageBytes: beforeImage,
-        afterImageBytes: afterImage,
+      final jobId = await _comparisonService.startComparison(
+        beforeImageUrl: beforeImageUrl,
+        afterImageUrl: afterImageUrl,
       );
 
       emit(SceneComparisonProcessing(
         jobId: jobId,
-        beforeImage: beforeImage,
-        afterImage: afterImage,
+        beforeImage: null,
+        afterImage: null,
       ));
 
       // Start periodically checking the job status
@@ -198,7 +198,7 @@ class SceneComparisonCubit extends Cubit<SceneComparisonState> {
 
     try {
       // Get the job results
-      final results = await _comparisonService.getJobResults(jobId);
+      final results = await _comparisonService.getResults(jobId);
 
       // Get the result images
       final imageUrls = results['image_urls'] as Map<String, dynamic>;
@@ -214,7 +214,7 @@ class SceneComparisonCubit extends Cubit<SceneComparisonState> {
 
         try {
           final imageBytes = await _comparisonService.getImage(jobId, filename);
-          images[imageName] = imageBytes;
+          images[imageName] = Uint8List.fromList(imageBytes);
         } catch (e) {
           print('Error downloading image $imageName: $e');
           // Continue with other images even if one fails
@@ -252,9 +252,9 @@ class SceneComparisonCubit extends Cubit<SceneComparisonState> {
       }
 
       try {
-        final status = await _comparisonService.checkJobStatus(jobId);
+        final status = await _comparisonService.getStatus(jobId);
 
-        if (status.toLowerCase() == 'complete') {
+        if (status['status'].toString().toLowerCase() == 'complete') {
           timer.cancel();
           await retrieveResults(jobId);
         } else {

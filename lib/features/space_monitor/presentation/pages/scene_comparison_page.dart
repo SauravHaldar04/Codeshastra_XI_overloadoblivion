@@ -4,19 +4,24 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 import 'package:http/http.dart' as http;
 import '../widgets/image_comparison_slider.dart';
+import 'package:codeshastraxi_overload_oblivion/features/space_monitor/data/services/scene_comparison_service.dart';
 
 class SceneComparisonPage extends StatefulWidget {
+  final String jobId;
   final String beforeRoom;
   final String beforeTimestamp;
   final String afterRoom;
   final String afterTimestamp;
+  final Map<String, dynamic> results;
 
   const SceneComparisonPage({
     Key? key,
+    required this.jobId,
     required this.beforeRoom,
     required this.beforeTimestamp,
     required this.afterRoom,
     required this.afterTimestamp,
+    required this.results,
   }) : super(key: key);
 
   @override
@@ -24,8 +29,12 @@ class SceneComparisonPage extends StatefulWidget {
 }
 
 class _SceneComparisonPageState extends State<SceneComparisonPage> {
-  bool _isLoading = true;
-  String? _errorMessage;
+  late final SceneComparisonService _comparisonService;
+  bool _isLoading = false;
+  String? _error;
+  Map<String, dynamic>? _statistics;
+  Map<String, dynamic>? _graphData;
+  Map<String, String>? _imageUrls;
 
   // Image data
   Uint8List? _beforeOriginalImage;
@@ -38,237 +47,112 @@ class _SceneComparisonPageState extends State<SceneComparisonPage> {
   @override
   void initState() {
     super.initState();
-    _loadImages();
+    _comparisonService = SceneComparisonService();
+    _loadComparisonData();
   }
 
-  Future<void> _loadImages() async {
+  Future<void> _loadComparisonData() async {
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+
     try {
-      setState(() {
-        _isLoading = true;
-        _errorMessage = null;
-      });
-
-      // Fetch before scan data
-      final beforeData =
-          await _fetchScanData(widget.beforeRoom, widget.beforeTimestamp);
-      if (beforeData == null) {
-        throw Exception('Failed to fetch before scan data');
-      }
-
-      // Fetch after scan data
-      final afterData =
-          await _fetchScanData(widget.afterRoom, widget.afterTimestamp);
-      if (afterData == null) {
-        throw Exception('Failed to fetch after scan data');
-      }
-
-      // Debug URLs
-      debugPrint('Before Original URL: ${beforeData['original_image_url']}');
-      debugPrint('After Original URL: ${afterData['original_image_url']}');
-
-      // Load images in parallel
-      final futures = [
-        _loadImageFromUrl(beforeData['original_image_url']),
-        _loadImageFromUrl(afterData['original_image_url']),
-        _loadImageFromUrl(beforeData['depth_image_url']),
-        _loadImageFromUrl(afterData['depth_image_url']),
-        _loadImageFromUrl(beforeData['detection_image_url']),
-        _loadImageFromUrl(afterData['detection_image_url']),
-      ];
-
-      final results = await Future.wait(futures);
+      // Extract data from results
+      _statistics = widget.results['results']['statistics'];
+      _graphData = widget.results['results']['graph_data'];
+      _imageUrls = Map<String, String>.from(widget.results['image_urls']);
 
       setState(() {
-        _beforeOriginalImage = results[0];
-        _afterOriginalImage = results[1];
-        _beforeDepthImage = results[2];
-        _afterDepthImage = results[3];
-        _beforeDetectionImage = results[4];
-        _afterDetectionImage = results[5];
         _isLoading = false;
       });
     } catch (e) {
       setState(() {
-        _errorMessage = 'Error loading comparison: $e';
+        _error = 'Failed to load comparison data: $e';
         _isLoading = false;
       });
-      debugPrint('Error in _loadImages: $e');
-    }
-  }
-
-  Future<Map<String, dynamic>?> _fetchScanData(
-      String roomName, String timestamp) async {
-    try {
-      debugPrint('Fetching data for room: $roomName, timestamp: $timestamp');
-      final querySnapshot = await FirebaseFirestore.instance
-          .collection('scene_analysis_result')
-          .where('room_name', isEqualTo: roomName)
-          .where('timestamp', isEqualTo: timestamp)
-          .limit(1)
-          .get();
-
-      if (querySnapshot.docs.isEmpty) {
-        debugPrint(
-            'No documents found for room: $roomName, timestamp: $timestamp');
-        return null;
-      }
-
-      final data = querySnapshot.docs.first.data();
-      debugPrint('Found data: ${data.keys.toString()}');
-      return data;
-    } catch (e) {
-      debugPrint('Error fetching scan data: $e');
-      return null;
-    }
-  }
-
-  Future<Uint8List?> _loadImageFromUrl(String? url) async {
-    if (url == null || url.isEmpty) {
-      debugPrint('URL is null or empty');
-      return null;
-    }
-
-    try {
-      debugPrint('Loading image from URL: $url');
-      final response = await http.get(Uri.parse(url));
-      if (response.statusCode == 200) {
-        debugPrint(
-            'Successfully loaded image from URL: $url (${response.bodyBytes.length} bytes)');
-        return response.bodyBytes;
-      } else {
-        debugPrint(
-            'Failed to load image from URL: $url. Status code: ${response.statusCode}');
-        return null;
-      }
-    } catch (e) {
-      debugPrint('Error loading image from URL: $url. Error: $e');
-      return null;
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    // Format timestamps for display
-    final beforeDate = DateTime.parse(widget.beforeTimestamp);
-    final afterDate = DateTime.parse(widget.afterTimestamp);
-    final dateFormat = DateFormat('MMM d, y HH:mm');
-
     return Scaffold(
       appBar: AppBar(
         title: const Text('Scene Comparison'),
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : _errorMessage != null
-              ? Center(
-                  child:
-                      Text(_errorMessage!, style: TextStyle(color: Colors.red)))
-              : SingleChildScrollView(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Header with room and timestamp information
-                      _buildComparisonHeader(
-                        beforeRoom: widget.beforeRoom,
-                        beforeTime: dateFormat.format(beforeDate),
-                        afterRoom: widget.afterRoom,
-                        afterTime: dateFormat.format(afterDate),
-                      ),
-                      const SizedBox(height: 24),
-
-                      // Original images comparison
-                      if (_beforeOriginalImage != null &&
-                          _afterOriginalImage != null)
-                        _buildImageComparisonSection(
-                          title: 'Original Images',
-                          beforeImage: _beforeOriginalImage!,
-                          afterImage: _afterOriginalImage!,
-                        ),
-
-                      // Detection images comparison
-                      if (_beforeDetectionImage != null &&
-                          _afterDetectionImage != null)
-                        _buildImageComparisonSection(
-                          title: 'Detection Images',
-                          beforeImage: _beforeDetectionImage!,
-                          afterImage: _afterDetectionImage!,
-                        ),
-
-                      // Depth images comparison
-                      if (_beforeDepthImage != null && _afterDepthImage != null)
-                        _buildImageComparisonSection(
-                          title: 'Depth Images',
-                          beforeImage: _beforeDepthImage!,
-                          afterImage: _afterDepthImage!,
-                        ),
-
-                      // No images available
-                      if (_beforeOriginalImage == null ||
-                          _afterOriginalImage == null)
-                        const Center(
-                          child: Padding(
-                            padding: EdgeInsets.all(24.0),
-                            child: Text(
-                              'Some images could not be loaded. Please check your internet connection and try again.',
-                              textAlign: TextAlign.center,
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
+      body: _buildBody(),
     );
   }
 
-  Widget _buildComparisonHeader({
-    required String beforeRoom,
-    required String beforeTime,
-    required String afterRoom,
-    required String afterTime,
-  }) {
+  Widget _buildBody() {
+    if (_isLoading) {
+      return const Center(
+        child: CircularProgressIndicator(),
+      );
+    }
+
+    if (_error != null) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              'Error',
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
+            const SizedBox(height: 8),
+            Text(_error!),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: _loadComparisonData,
+              child: const Text('Retry'),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildHeader(),
+          const SizedBox(height: 24),
+          _buildStatistics(),
+          const SizedBox(height: 24),
+          _buildImageComparisons(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHeader() {
+    final beforeDate = DateTime.parse(widget.beforeTimestamp);
+    final afterDate = DateTime.parse(widget.afterTimestamp);
+    final dateFormat = DateFormat('MMM d, y HH:mm');
+
     return Card(
-      elevation: 2,
       child: Padding(
-        padding: const EdgeInsets.all(16.0),
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Comparing Room Scans',
-              style: Theme.of(context).textTheme.headlineSmall,
+              'Comparison Details',
+              style: Theme.of(context).textTheme.titleLarge,
             ),
             const SizedBox(height: 16),
-            Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text('Before:',
-                          style: TextStyle(fontWeight: FontWeight.bold)),
-                      Text(beforeRoom),
-                      Text(beforeTime,
-                          style: const TextStyle(
-                              fontSize: 12, color: Colors.grey)),
-                    ],
-                  ),
-                ),
-                const Icon(Icons.arrow_forward),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text('After:',
-                          style: TextStyle(fontWeight: FontWeight.bold)),
-                      Text(afterRoom),
-                      Text(afterTime,
-                          style: const TextStyle(
-                              fontSize: 12, color: Colors.grey)),
-                    ],
-                  ),
-                ),
-              ],
+            _buildTimelineRow(
+              'Before',
+              widget.beforeRoom,
+              dateFormat.format(beforeDate),
+            ),
+            const SizedBox(height: 8),
+            _buildTimelineRow(
+              'After',
+              widget.afterRoom,
+              dateFormat.format(afterDate),
             ),
           ],
         ),
@@ -276,33 +160,171 @@ class _SceneComparisonPageState extends State<SceneComparisonPage> {
     );
   }
 
-  Widget _buildImageComparisonSection({
-    required String title,
-    required Uint8List beforeImage,
-    required Uint8List afterImage,
-  }) {
+  Widget _buildTimelineRow(String label, String room, String time) {
+    return Row(
+      children: [
+        Container(
+          width: 80,
+          child: Text(
+            label,
+            style: const TextStyle(fontWeight: FontWeight.bold),
+          ),
+        ),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(room),
+              Text(
+                time,
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildStatistics() {
+    if (_statistics == null) return const SizedBox.shrink();
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Analysis Results',
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
+            const SizedBox(height: 16),
+            _buildStatRow('Objects Added', _statistics!['additions']),
+            _buildStatRow('Objects Removed', _statistics!['removals']),
+            _buildStatRow('Objects Moved', _statistics!['movements']),
+            _buildStatRow(
+                'Before Detections', _statistics!['before_detections']),
+            _buildStatRow('After Detections', _statistics!['after_detections']),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStatRow(String label, dynamic value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label),
+          Text(
+            value.toString(),
+            style: const TextStyle(fontWeight: FontWeight.bold),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildImageComparisons() {
+    if (_imageUrls == null) return const SizedBox.shrink();
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(vertical: 8.0),
-          child: Text(
-            title,
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
-        ),
-        Card(
-          elevation: 3,
-          child: Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: ImageComparisonSlider(
-              beforeImage: beforeImage,
-              afterImage: afterImage,
-            ),
-          ),
+        _buildImageComparisonSection(
+          'Original Images',
+          _imageUrls!['before_image'],
+          _imageUrls!['after_image'],
         ),
         const SizedBox(height: 24),
+        _buildImageComparisonSection(
+          'Detection Results',
+          _imageUrls!['before_det_vis'],
+          _imageUrls!['after_det_vis'],
+        ),
+        const SizedBox(height: 24),
+        _buildImageComparisonSection(
+          'Depth Analysis',
+          _imageUrls!['before_depth_vis'],
+          _imageUrls!['after_depth_vis'],
+        ),
+        const SizedBox(height: 24),
+        _buildImageComparisonSection(
+          'Changes Visualization',
+          _imageUrls!['changes_vis'],
+          _imageUrls!['movements_vis'],
+          isSideBySide: true,
+        ),
       ],
+    );
+  }
+
+  Widget _buildImageComparisonSection(
+    String title,
+    String? beforeUrl,
+    String? afterUrl, {
+    bool isSideBySide = false,
+  }) {
+    if (beforeUrl == null || afterUrl == null) return const SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: Theme.of(context).textTheme.titleMedium,
+        ),
+        const SizedBox(height: 8),
+        if (isSideBySide)
+          Row(
+            children: [
+              Expanded(
+                child: _buildImage(beforeUrl),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _buildImage(afterUrl),
+              ),
+            ],
+          )
+        else
+          ImageComparisonSlider(
+            beforeImageUrl: beforeUrl,
+            afterImageUrl: afterUrl,
+          ),
+      ],
+    );
+  }
+
+  Widget _buildImage(String url) {
+    return AspectRatio(
+      aspectRatio: 16 / 9,
+      child: Image.network(
+        url,
+        fit: BoxFit.cover,
+        loadingBuilder: (context, child, loadingProgress) {
+          if (loadingProgress == null) return child;
+          return Center(
+            child: CircularProgressIndicator(
+              value: loadingProgress.expectedTotalBytes != null
+                  ? loadingProgress.cumulativeBytesLoaded /
+                      loadingProgress.expectedTotalBytes!
+                  : null,
+            ),
+          );
+        },
+        errorBuilder: (context, error, stackTrace) {
+          return Container(
+            color: Colors.grey[200],
+            child: const Center(
+              child: Icon(Icons.error_outline),
+            ),
+          );
+        },
+      ),
     );
   }
 }

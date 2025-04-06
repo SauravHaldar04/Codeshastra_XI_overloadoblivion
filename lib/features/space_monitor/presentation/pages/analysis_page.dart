@@ -8,6 +8,7 @@ import 'package:codeshastraxi_overload_oblivion/features/space_monitor/presentat
 import 'package:image_picker/image_picker.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
+import 'package:codeshastraxi_overload_oblivion/features/space_monitor/data/services/scene_comparison_service.dart';
 import 'scene_comparison_page.dart';
 
 class AnalysisPage extends StatefulWidget {
@@ -547,7 +548,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
         // Process documents and organize by room name
         for (var doc in querySnapshot.docs) {
           final data = doc.data();
-          final roomName = data['room_name'] as String?;
+          final roomName = data['cloud_links']['room'] as String?;
           final timestamp = data['timestamp'] as String?;
 
           if (roomName != null && timestamp != null) {
@@ -578,7 +579,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
                 if (roomScans.isNotEmpty) {
                   setState(() {
                     selectedFirstRoom = roomScans.keys.first;
-                    if (roomScans[selectedFirstRoom]!.length > 0) {
+                    if (roomScans[selectedFirstRoom]!.isNotEmpty) {
                       selectedFirstScan = roomScans[selectedFirstRoom]![0];
                     }
 
@@ -599,23 +600,62 @@ class _AnalysisPageState extends State<AnalysisPage> {
               });
             }
 
-            return AlertDialog(
-              title: const Text('Compare Scans'),
-              content: isLoading
-                  ? const SizedBox(
-                      height: 100,
-                      child: Center(
-                        child: CircularProgressIndicator(),
-                      ),
-                    )
-                  : roomScans.isEmpty
-                      ? const Text('No scans available for comparison')
-                      : SizedBox(
-                          width: double.maxFinite,
+            return Dialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Container(
+                width: MediaQuery.of(context).size.width * 0.9,
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Text(
+                          'Compare Scans',
+                          style: Theme.of(context).textTheme.titleLarge,
+                        ),
+                        const Spacer(),
+                        if (isLoading)
+                          const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 24),
+                    if (isLoading)
+                      const Center(
+                        child: Padding(
+                          padding: EdgeInsets.all(32.0),
+                          child: CircularProgressIndicator(),
+                        ),
+                      )
+                    else if (roomScans.isEmpty)
+                      const Center(
+                        child: Padding(
+                          padding: EdgeInsets.all(32.0),
+                          child: Text('No scans available for comparison'),
+                        ),
+                      )
+                    else
+                      ConstrainedBox(
+                        constraints: BoxConstraints(
+                          maxHeight: MediaQuery.of(context).size.height * 0.6,
+                        ),
+                        child: SingleChildScrollView(
                           child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              const Text('First Scan (Before):'),
+                              Text(
+                                'First Scan (Before):',
+                                style: Theme.of(context).textTheme.titleMedium,
+                              ),
+                              const SizedBox(height: 8),
                               _buildScanSelector(
                                 roomScans,
                                 selectedFirstRoom,
@@ -636,8 +676,12 @@ class _AnalysisPageState extends State<AnalysisPage> {
                                   });
                                 },
                               ),
-                              const SizedBox(height: 16),
-                              const Text('Second Scan (After):'),
+                              const SizedBox(height: 24),
+                              Text(
+                                'Second Scan (After):',
+                                style: Theme.of(context).textTheme.titleMedium,
+                              ),
+                              const SizedBox(height: 8),
                               _buildScanSelector(
                                 roomScans,
                                 selectedSecondRoom,
@@ -661,27 +705,39 @@ class _AnalysisPageState extends State<AnalysisPage> {
                             ],
                           ),
                         ),
-              actions: [
-                TextButton(
-                  onPressed: () {
-                    Navigator.of(context).pop();
-                  },
-                  child: const Text('Cancel'),
+                      ),
+                    const SizedBox(height: 24),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        TextButton(
+                          onPressed: () {
+                            Navigator.of(context).pop();
+                          },
+                          child: const Text('Cancel'),
+                        ),
+                        const SizedBox(width: 8),
+                        if (!isLoading &&
+                            roomScans.isNotEmpty &&
+                            selectedFirstScan != null &&
+                            selectedSecondScan != null)
+                          ElevatedButton(
+                            onPressed: () {
+                              _performScanComparison(
+                                selectedFirstRoom!,
+                                selectedFirstScan!,
+                                selectedSecondRoom!,
+                                selectedSecondScan!,
+                              );
+                              Navigator.of(context).pop();
+                            },
+                            child: const Text('Compare'),
+                          ),
+                      ],
+                    ),
+                  ],
                 ),
-                if (!isLoading && roomScans.isNotEmpty)
-                  TextButton(
-                    onPressed: () {
-                      _performScanComparison(
-                        selectedFirstRoom!,
-                        selectedFirstScan!,
-                        selectedSecondRoom!,
-                        selectedSecondScan!,
-                      );
-                      Navigator.of(context).pop();
-                    },
-                    child: const Text('Compare'),
-                  ),
-              ],
+              ),
             );
           },
         );
@@ -697,7 +753,9 @@ class _AnalysisPageState extends State<AnalysisPage> {
     Function(String) onScanChanged,
   ) {
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        // Room selector
         DropdownButton<String>(
           isExpanded: true,
           value: selectedRoom,
@@ -713,28 +771,155 @@ class _AnalysisPageState extends State<AnalysisPage> {
             }
           },
         ),
+
+        // Scan selector with thumbnails
         if (selectedRoom != null && roomScans[selectedRoom]!.isNotEmpty)
-          DropdownButton<String>(
-            isExpanded: true,
-            value: selectedScan,
-            items: roomScans[selectedRoom]!.map((scan) {
-              // Format date for display
-              final dateTime = DateTime.parse(scan);
-              final formattedDate =
-                  DateFormat('MMM d, y HH:mm').format(dateTime);
-              return DropdownMenuItem<String>(
-                value: scan,
-                child: Text(formattedDate),
-              );
-            }).toList(),
-            onChanged: (value) {
-              if (value != null) {
-                onScanChanged(value);
-              }
-            },
+          SizedBox(
+            height: 120,
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              itemCount: roomScans[selectedRoom]!.length,
+              itemBuilder: (context, index) {
+                final scan = roomScans[selectedRoom]![index];
+                final dateTime = DateTime.parse(scan);
+                final formattedDate =
+                    DateFormat('MMM d, y\nHH:mm').format(dateTime);
+
+                return Padding(
+                  padding: const EdgeInsets.only(right: 12.0, top: 8.0),
+                  child: InkWell(
+                    onTap: () => onScanChanged(scan),
+                    child: Container(
+                      width: 100,
+                      decoration: BoxDecoration(
+                        border: Border.all(
+                          color: selectedScan == scan
+                              ? Theme.of(context).colorScheme.primary
+                              : Colors.grey.shade300,
+                          width: selectedScan == scan ? 2 : 1,
+                        ),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Thumbnail
+                          FutureBuilder<String?>(
+                            future: _getImageUrl(selectedRoom, scan),
+                            builder: (context, snapshot) {
+                              if (snapshot.connectionState ==
+                                  ConnectionState.waiting) {
+                                return const SizedBox(
+                                  height: 80,
+                                  child: Center(
+                                    child: SizedBox(
+                                      width: 20,
+                                      height: 20,
+                                      child: CircularProgressIndicator(
+                                          strokeWidth: 2),
+                                    ),
+                                  ),
+                                );
+                              }
+
+                              if (snapshot.hasData && snapshot.data != null) {
+                                return ClipRRect(
+                                  borderRadius: const BorderRadius.vertical(
+                                      top: Radius.circular(7)),
+                                  child: Image.network(
+                                    snapshot.data!,
+                                    height: 80,
+                                    width: double.infinity,
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (context, error, stackTrace) {
+                                      return Container(
+                                        height: 80,
+                                        color: Colors.grey.shade200,
+                                        child: const Icon(Icons.error_outline),
+                                      );
+                                    },
+                                  ),
+                                );
+                              }
+
+                              return Container(
+                                height: 80,
+                                color: Colors.grey.shade200,
+                                child: const Icon(Icons.image_not_supported),
+                              );
+                            },
+                          ),
+
+                          // Timestamp
+                          Expanded(
+                            child: Container(
+                              padding: const EdgeInsets.all(4),
+                              width: double.infinity,
+                              decoration: BoxDecoration(
+                                color: selectedScan == scan
+                                    ? Theme.of(context)
+                                        .colorScheme
+                                        .primary
+                                        .withOpacity(0.1)
+                                    : Colors.grey.shade50,
+                                borderRadius: const BorderRadius.vertical(
+                                    bottom: Radius.circular(7)),
+                              ),
+                              child: Text(
+                                formattedDate,
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  color: selectedScan == scan
+                                      ? Theme.of(context).colorScheme.primary
+                                      : Colors.grey.shade700,
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
           ),
       ],
     );
+  }
+
+  Future<String?> _getImageUrl(String room, String timestamp) async {
+    try {
+      final querySnapshot = await FirebaseFirestore.instance
+          .collection('scene_analysis_results')
+          .where('room', isEqualTo: room)
+          .where('timestamp', isEqualTo: timestamp)
+          .limit(1)
+          .get();
+
+      if (querySnapshot.docs.isEmpty) {
+        return null;
+      }
+
+      final data = querySnapshot.docs.first.data();
+
+      // Extract the original image URL from cloud_links
+      if (data.containsKey('cloud_links') &&
+          data['cloud_links'] is Map &&
+          data['cloud_links'].containsKey('images') &&
+          data['cloud_links']['images'] is Map &&
+          data['cloud_links']['images'].containsKey('original') &&
+          data['cloud_links']['images']['original'] is Map &&
+          data['cloud_links']['images']['original'].containsKey('url')) {
+        return data['cloud_links']['images']['original']['url'] as String;
+      }
+
+      return null;
+    } catch (e) {
+      debugPrint('Error getting image URL: $e');
+      return null;
+    }
   }
 
   void _performScanComparison(
@@ -742,34 +927,81 @@ class _AnalysisPageState extends State<AnalysisPage> {
     String firstTimestamp,
     String secondRoom,
     String secondTimestamp,
-  ) {
-    // Determine which scan is earlier to set as "before"
-    final firstDate = DateTime.parse(firstTimestamp);
-    final secondDate = DateTime.parse(secondTimestamp);
+  ) async {
+    // Show loading dialog
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(
+        child: CircularProgressIndicator(),
+      ),
+    );
 
-    // Navigate to comparison page with the correct order of scans
-    if (firstDate.isBefore(secondDate)) {
-      // First scan is earlier, so it's the "before" scan
+    try {
+      // Get image URLs for both scans
+      final beforeImageUrl = await _getImageUrl(firstRoom, firstTimestamp);
+      final afterImageUrl = await _getImageUrl(secondRoom, secondTimestamp);
+
+      if (beforeImageUrl == null || afterImageUrl == null) {
+        throw Exception('Failed to get image URLs');
+      }
+
+      // Initialize the comparison service
+      final comparisonService = SceneComparisonService();
+
+      // Start the comparison
+      final jobId = await comparisonService.startComparison(
+        beforeImageUrl: beforeImageUrl,
+        afterImageUrl: afterImageUrl,
+      );
+
+      // Poll for completion
+      bool isComplete = false;
+      while (!isComplete) {
+        await Future.delayed(const Duration(seconds: 2));
+        final status = await comparisonService.getStatus(jobId);
+        if (status['status'] == 'Complete') {
+          isComplete = true;
+        } else if (status['status'] == 'Failed') {
+          throw Exception('Comparison failed: ${status['message']}');
+        }
+      }
+
+      // Get the results
+      final results = await comparisonService.getResults(jobId);
+
+      // Close loading dialog
+      Navigator.of(context).pop();
+
+      // Navigate to comparison page with the results
       Navigator.of(context).push(
         MaterialPageRoute(
           builder: (context) => SceneComparisonPage(
+            jobId: jobId,
             beforeRoom: firstRoom,
             beforeTimestamp: firstTimestamp,
             afterRoom: secondRoom,
             afterTimestamp: secondTimestamp,
+            results: results,
           ),
         ),
       );
-    } else {
-      // Second scan is earlier or same time, so it's the "before" scan
-      Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (context) => SceneComparisonPage(
-            beforeRoom: secondRoom,
-            beforeTimestamp: secondTimestamp,
-            afterRoom: firstRoom,
-            afterTimestamp: firstTimestamp,
-          ),
+    } catch (e) {
+      // Close loading dialog
+      Navigator.of(context).pop();
+
+      // Show error dialog
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Error'),
+          content: Text('Failed to compare scans: $e'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('OK'),
+            ),
+          ],
         ),
       );
     }
